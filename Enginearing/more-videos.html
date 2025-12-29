@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>More Videos - Engineerings PK</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            color: var(--text-dark);
+            overflow-x: hidden;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        .gallery-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .gallery-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+        }
+
+        .video-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        .video-card:hover {
+            transform: translateY(-10px);
+        }
+
+        .video-thumbnail {
+            position: relative;
+            width: 100%;
+            padding: 25%;
+        }
+
+
+        .video-thumbnail img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+
+
+        .video-info {
+            padding: 15px;
+        }
+
+        .video-title {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .video-date {
+            font-size: 0.9rem;
+            color: #777;
+        }
+
+        @media (max-width: 992px) {
+            .video-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 576px) {
+            .video-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="gallery-container bg-light py-5">
+
+        <div class="gallery-header pt-4">
+            <h1>All Recent Videos from Engineerings PK</h1>
+            <!-- Back Button -->
+            <a href="index.html" class="btn btn-dark">⬅ Back to Latest
+                Videos</a>
+        </div>
+
+        <div id="loading" style="text-align:center; color:white; margin-bottom:30px;">
+            <div class="spinner-border text-light" style="width: 3rem; height: 3rem;"></div>
+            <p style="margin-top:10px;">Loading videos...</p>
+        </div>
+
+        <div id="videoGrid" class="video-grid" style="display:none;"></div>
+
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="videoModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header" style="background:#667eea; color:white;">
+                    <h5 class="modal-title" id="modalVideoTitle"></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding:0;">
+                    <div style="position:relative; padding-top:56.25%;" id="videoPlayer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap + JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+
+        const API_KEY = "AIzaSyC0b0yXCiOMpmqKszY1edmSVVakItFhJFo";
+        const CHANNEL_USERNAME = "@EngineeringsPk";
+
+        let allVideos = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchVideos();
+        });
+
+        async function fetchVideos() {
+            try {
+                // STEP 1: Get channel uploads playlist
+                const channelRes = await fetch(
+                    `https://www.googleapis.com/youtube/v3/channels?part=contentDetails,snippet&forHandle=${CHANNEL_USERNAME}&key=${API_KEY}`
+                );
+                const channelData = await channelRes.json();
+
+                const uploadsPlaylistId =
+                    channelData.items[0].contentDetails.relatedPlaylists.uploads;
+
+                // STEP 2: Get videos list
+                const videosRes = await fetch(
+                    `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&key=${API_KEY}`
+                );
+                const videosData = await videosRes.json();
+
+                const videoIds = videosData.items.map(v => v.snippet.resourceId.videoId).join(",");
+
+                // STEP 3: Get video duration to filter short videos
+                const detailRes = await fetch(
+                    `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,snippet&id=${videoIds}&key=${API_KEY}`
+                );
+                const detailsData = await detailRes.json();
+
+                // Filter 60 sec+ videos
+                allVideos = detailsData.items.filter(v => {
+                    return parseDuration(v.contentDetails.duration) >= 60;
+                });
+
+                document.getElementById("loading").style.display = "none";
+                document.getElementById("videoGrid").style.display = "grid";
+
+                showAllVideos();
+
+            } catch (e) {
+                console.log("Error:", e);
+            }
+        }
+
+        function parseDuration(d) {
+            const match = d.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+            const h = parseInt(match[1]) || 0;
+            const m = parseInt(match[2]) || 0;
+            const s = parseInt(match[3]) || 0;
+            return h * 3600 + m * 60 + s;
+        }
+
+        function showAllVideos() {
+            const videoGrid = document.getElementById("videoGrid");
+
+            allVideos.forEach(video => {
+                const card = document.createElement("div");
+                card.className = "video-card";
+
+                const thumb = video.snippet.thumbnails.high.url;
+                const title = video.snippet.title;
+                const date = new Date(video.snippet.publishedAt).toDateString();
+                const id = video.id;
+
+                card.innerHTML = `
+                    <div class="video-thumbnail">
+                        <img src="${thumb}">
+                    </div>
+                    <div class="video-info">
+                        <div class="video-title">${title}</div>
+                        <div class="video-date">${date}</div>
+                    </div>
+                `;
+
+                card.onclick = () => openVideoModal(id, title);
+                videoGrid.appendChild(card);
+            });
+        }
+
+        // Modal open
+        function openVideoModal(id, title) {
+            document.getElementById("modalVideoTitle").innerText = title;
+            document.getElementById("videoPlayer").innerHTML = `
+                <iframe 
+                    src="https://www.youtube.com/embed/${id}?autoplay=1"
+                    style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;"
+                    allow="autoplay"
+                    allowfullscreen
+                ></iframe>
+            `;
+            new bootstrap.Modal(document.getElementById("videoModal")).show();
+        }
+
+        // Modal close – stop video
+        document.getElementById("videoModal").addEventListener("hidden.bs.modal", () => {
+            document.getElementById("videoPlayer").innerHTML = "";
+        });
+
+    </script>
+
+</body>
+
+</html>
